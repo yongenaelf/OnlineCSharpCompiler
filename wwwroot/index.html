@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Online C# Compiler</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.37.1/min/vs/editor/editor.main.css"
+    />
+  </head>
+  <body>
+    <h1>C# Online Compiler</h1>
+    <div
+      id="editor"
+      style="width: 800px; height: 600px; border: 1px solid #ccc"
+    ></div>
+    <button id="compileButton">Compile to DLL</button>
+    <pre id="output"></pre>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.37.1/min/vs/loader.js"></script>
+    <script>
+      require.config({
+        paths: {
+          vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.37.1/min/vs",
+        },
+      });
+      require(["vs/editor/editor.main"], function () {
+        const editor = monaco.editor.create(document.getElementById("editor"), {
+          value: `using AElf.Sdk.CSharp;
+using Google.Protobuf.WellKnownTypes;
+
+namespace AElf.Contracts.HelloWorld
+{
+    // Contract class must inherit the base class generated from the proto file
+    public class HelloWorld : HelloWorldContainer.HelloWorldBase
+    {
+        // A method that modifies the contract state
+        public override Empty Update(StringValue input)
+        {
+            // Set the message value in the contract state
+            State.Message.Value = input.Value;
+            // Emit an event to notify listeners about something happened during the execution of this method
+            Context.Fire(new UpdatedMessage
+            {
+                Value = input.Value
+            });
+            return new Empty();
+        }
+
+        // A method that read the contract state
+        public override StringValue Read(Empty input)
+        {
+            // Retrieve the value from the state
+            var value = State.Message.Value;
+            // Wrap the value in the return type
+            return new StringValue
+            {
+                Value = value
+            };
+        }
+    }
+}
+          `,
+          language: "csharp",
+        });
+
+        document
+          .getElementById("compileButton")
+          .addEventListener("click", async () => {
+            const code = editor.getValue();
+            const response = await fetch("/compiler/compileToDll", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(code),
+            });
+
+            if (response.ok) {
+              const blob = await response.blob();
+              const url = window.URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = "CompiledAssembly.dll";
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+            } else {
+              const errorText = await response.text();
+              document.getElementById("output").textContent = errorText;
+            }
+          });
+      });
+    </script>
+  </body>
+</html>
